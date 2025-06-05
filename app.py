@@ -1,50 +1,47 @@
 import streamlit as st
-import openai
-from dotenv import load_dotenv
 import os
+from openai import OpenAI
 
-load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Load API key (from secrets or env var)
+api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
+client = OpenAI(api_key=api_key)
 
-# Personality and scoring system prompt
+# Marvin's system message
 marvin_personality = """
-Your name is Marvin, an AI agent that qualifies vehicle sellers for Sub2 deals.
-Ask these questions conversationally:
-1. Is the vehicle paid off or do you still have a loan on it?
-2. What’s your monthly payment and who’s the lender?
-3. Do you know the current payoff or balance?
-4. Is there a reason you’re looking to sell right now?
-Based on their answers, score the deal (1-10). Score higher if:
-- Vehicle is newer (<5 yrs)
-- Seller has loan
-- Monthly payment is low
-- Seller is urgent or behind
-Explain if it’s a good fit and ask if you can pass it to a real buyer.
-Be friendly, helpful, and sharp — not salesy.
+Your name is Marvin, an AI assistant trained to qualify vehicle sellers for creative finance deals (Sub2, Seller Finance).
+You ask about:
+1. Whether the vehicle has a loan
+2. Current monthly payment and payoff
+3. The reason for selling
+You score deals 1–10. Higher scores = financed, newer car, low payment, urgency. Be helpful and confident. You do NOT negotiate.
 """
 
-st.title("🚗 Marvin - Sub2 Vehicle Lead Assistant")
+st.set_page_config(page_title="Marvin AI - Vehicle Lead Audit", page_icon="🚗")
+st.title("🚗 Marvin: Sub2 Vehicle Lead Screener")
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [{"role": "system", "content": marvin_personality}]
 
-user_input = st.text_input("You (Seller):", key="input")
+user_input = st.text_input("You (Vehicle Seller):", key="input")
 
 if user_input:
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=st.session_state.chat_history,
-        temperature=0.6
-    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=st.session_state.chat_history,
+            temperature=0.6
+        )
 
-    reply = response['choices'][0]['message']['content']
-    st.session_state.chat_history.append({"role": "assistant", "content": reply})
+        reply = response.choices[0].message.content
+        st.session_state.chat_history.append({"role": "assistant", "content": reply})
+        st.markdown(f"**Marvin:** {reply}")
 
-    st.markdown(f"**Marvin:** {reply}")
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
 
-# Optional: Display conversation history
-with st.expander("Show full chat history"):
+with st.expander("🧠 Show Chat History"):
     for msg in st.session_state.chat_history:
         st.write(f"**{msg['role'].capitalize()}**: {msg['content']}")
+
